@@ -27,6 +27,10 @@ import com.google.android.gms.nearby.connection.Strategy;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -41,6 +45,7 @@ public class MainActivity extends AppCompatActivity {
     private final String codeName = "master";
     private TextView statusText;
     private final ArrayList<String> connectedEndpointIds = new ArrayList<>();
+    private final Map<String, Integer> endPointsBatteryLevelsMap = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,8 +65,7 @@ public class MainActivity extends AppCompatActivity {
                         new OnSuccessListener<Void>() {
                             @Override
                             public void onSuccess(Void unused) {
-                                // We're discovering!
-                                statusText.append("\n"+"Started discovery");
+                                statusText.append("\n" + "Started discovery");
                                 System.out.println("Started discovery");
                             }
                         })
@@ -69,9 +73,8 @@ public class MainActivity extends AppCompatActivity {
                         new OnFailureListener() {
                             @Override
                             public void onFailure(@NonNull Exception e) {
-                                // We're unable to start discovering.
-                                statusText.append("\n"+"Cannot start discovery"+e);
-                                System.out.println("Cannot start discovery"+e);
+                                statusText.append("\n" + "Cannot start discovery" + e);
+                                System.out.println("Cannot start discovery" + e);
                             }
                         });
     }
@@ -81,16 +84,16 @@ public class MainActivity extends AppCompatActivity {
             new EndpointDiscoveryCallback() {
                 @Override
                 public void onEndpointFound(String endpointId, DiscoveredEndpointInfo info) {
-                    System.out.println("Found end point"+endpointId+info);
-                    statusText.append("\n"+"Found end point"+endpointId+info);
-                    statusText.append("\n"+"Requesting connection"+endpointId);
+                    System.out.println("Found end point" + endpointId + info);
+                    statusText.append("\n" + "Found end point" + endpointId + info);
+                    statusText.append("\n" + "Requesting connection" + endpointId);
                     connectionsClient.requestConnection(codeName, endpointId, connectionLifecycleCallback);
                 }
 
                 @Override
                 public void onEndpointLost(String endpointId) {
-                    statusText.append("\n"+"Lost end point");
-                    System.out.println("Lost end point"+endpointId);
+                    statusText.append("\n" + "Lost end point");
+                    System.out.println("Lost end point" + endpointId);
                 }
             };
 
@@ -100,34 +103,23 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onConnectionInitiated(String endpointId, ConnectionInfo connectionInfo) {
                     connectionsClient.acceptConnection(endpointId, payloadCallback);
-                    statusText.append("\n"+"Connection accepted");
-//                    opponentName = connectionInfo.getEndpointName();
+                    statusText.append("\n" + "Connection accepted");
                 }
 
                 @Override
                 public void onConnectionResult(String endpointId, ConnectionResolution result) {
                     if (result.getStatus().isSuccess()) {
-//                        Log.i(TAG, "onConnectionResult: connection successful");
                         connectedEndpointIds.add(endpointId);
-                        statusText.append("\n"+"Connection successful!!");
-
-//                        connectionsClient.stopDiscovery();
-
-//                        opponentEndpointId = endpointId;
-//                        setOpponentName(opponentName);
-//                        setStatusText(getString(R.string.status_connected));
-//                        setButtonState(true);
+                        statusText.append("\n" + "Connection successful!!");
                     } else {
-                        statusText.append("\n"+"Connection failed :(");
-//                        Log.i(TAG, "onConnectionResult: connection failed");
+                        statusText.append("\n" + "Connection failed :(");
                     }
                 }
 
                 @Override
                 public void onDisconnected(String endpointId) {
                     connectedEndpointIds.remove(endpointId);
-                    statusText.append("\n"+"disconnected from the other end");
-//                    Log.i(TAG, "onDisconnected: disconnected from the opponent");
+                    statusText.append("\n" + "disconnected from the other end");
                 }
             };
 
@@ -136,17 +128,66 @@ public class MainActivity extends AppCompatActivity {
             new PayloadCallback() {
                 @Override
                 public void onPayloadReceived(String endpointId, Payload payload) {
-                    statusText.append("\n"+"Payload received"+payload);
-//                    opponentChoice = GameChoice.valueOf(new String(payload.asBytes(), UTF_8));
+                    String payloadString = new String(payload.asBytes(), StandardCharsets.UTF_8);
+                    statusText.append("\n" + "Payload received:" + payloadString);
+                    try {
+                        JSONObject jsonObject = new JSONObject(payloadString);
+                        Iterator<String> keys = jsonObject.keys();
+                        while (keys.hasNext()) {
+                            String key = keys.next();
+                            if (key.equals("batteryLevel")) {
+                                handleBatteryLevel(endpointId, jsonObject);
+                            } else if (key.equals("request")) {
+                                String userConsent = jsonObject.get("request").toString();
+                                handleRequest(endpointId, userConsent);
+                            }
+                        }
+                    } catch (JSONException e) {
+                        statusText.append("\n" + "Not a JSON object");
+                    }
                 }
 
                 @Override
                 public void onPayloadTransferUpdate(String endpointId, PayloadTransferUpdate update) {
-                    statusText.append("\n"+"Payload transfer update");
-//                    if (update.getStatus() == Status.SUCCESS && myChoice != null && opponentChoice != null) {
-//                    }
+                    statusText.append("\n" + "Payload transfer update");
                 }
             };
+
+    private void handleBatteryLevel(String endpointId, JSONObject jsonObject) throws JSONException {
+        int batteryPercentage = Integer.parseInt(jsonObject.get("batteryLevel").toString());
+        statusText.append("\n" + "BEFORE CONNECTED ENDPOINTS" + connectedEndpointIds.size());
+        endPointsBatteryLevelsMap.put(endpointId, batteryPercentage);
+        int thresholdBatteryPercentage = 10;
+        if (batteryPercentage < thresholdBatteryPercentage) {
+            connectionsClient.disconnectFromEndpoint(endpointId);
+            connectedEndpointIds.remove(endpointId);
+            statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
+            statusText.append("\n" + "Less battery level! Disconnected client with endpointId" + endpointId);
+        }
+        Iterator<String> endpointsIterator = connectedEndpointIds.iterator();
+        while (endpointsIterator.hasNext()) {
+            JSONObject requestObject = new JSONObject();
+            try {
+                requestObject.put("request", "");
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            connectionsClient.sendPayload(
+                    endpointsIterator.next(), Payload.fromBytes(requestObject.toString().getBytes(StandardCharsets.UTF_8)));
+            statusText.append("\n" + "Sent Request to:" + endpointId);
+        }
+    }
+
+    private void handleRequest(String endpointId, String userConsent) {
+        statusText.append("\n" + "User Consent:" + userConsent);
+        if(userConsent.equals("yes")) {
+            statusText.append("SEND MATRIX");
+        } else if(userConsent.equals("no")) {
+            connectionsClient.disconnectFromEndpoint(endpointId);
+            connectedEndpointIds.remove(endpointId);
+            statusText.append("\n" + "Disconnected ! Client not okay with it ! :( " + endpointId);
+        }
+    }
 
     public void findDevices(View view) {
         startDiscovery();
@@ -176,15 +217,5 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
         return true;
-    }
-
-    public void sendHi(View view) {
-        Iterator<String> endpointsIterator = connectedEndpointIds.iterator();
-        String hi = "hi";
-        while (endpointsIterator.hasNext()) {
-            connectionsClient.sendPayload(
-                    endpointsIterator.next(), Payload.fromBytes(hi.getBytes(UTF_8)));
-
-        }
     }
 }
