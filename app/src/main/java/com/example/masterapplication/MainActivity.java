@@ -1,5 +1,4 @@
 package com.example.masterapplication;
-
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -7,8 +6,10 @@ import androidx.core.content.ContextCompat;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.view.View;
 import android.widget.TextView;
 
@@ -110,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onConnectionResult(String endpointId, ConnectionResolution result) {
                     if (result.getStatus().isSuccess()) {
                         connectedEndpointIds.add(endpointId);
-                        statusText.append("\n" + "Connection successful!!");
+                        statusText.append("\n" + "Connection successful!!"+ connectedEndpointIds.get(0));
                     } else {
                         statusText.append("\n" + "Connection failed :(");
                     }
@@ -217,5 +218,13 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
         return true;
+    }
+
+
+    public void enterMatrices(View view) {
+        Intent activity2intent = new Intent(getApplicationContext(), TakeInput.class);
+        activity2intent.putStringArrayListExtra("slaves_id",connectedEndpointIds);
+//        activity2intent.putExtra("connectionsClient", (Parcelable) connectionsClient);
+        startActivity(activity2intent);
     }
 }
