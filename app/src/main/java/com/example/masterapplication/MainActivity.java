@@ -1,4 +1,5 @@
 package com.example.masterapplication;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -33,6 +34,7 @@ import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -47,6 +49,8 @@ public class MainActivity extends AppCompatActivity {
     private TextView statusText;
     private final ArrayList<String> connectedEndpointIds = new ArrayList<>();
     private final Map<String, Integer> endPointsBatteryLevelsMap = new HashMap<>();
+    int[][] matrix_c;
+    int flag = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
         statusText = findViewById(R.id.status_text);
         checkAndRequestPermissions();
         connectionsClient = Nearby.getConnectionsClient(this);
+
     }
 
     private void startDiscovery() {
@@ -111,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onConnectionResult(String endpointId, ConnectionResolution result) {
                     if (result.getStatus().isSuccess()) {
                         connectedEndpointIds.add(endpointId);
-                        statusText.append("\n" + "Connection successful!!"+ connectedEndpointIds.get(0));
+                        statusText.append("\n" + "Connection successful!!" + connectedEndpointIds.get(0));
                     } else {
                         statusText.append("\n" + "Connection failed :(");
                     }
@@ -141,6 +146,32 @@ public class MainActivity extends AppCompatActivity {
                             } else if (key.equals("request")) {
                                 String userConsent = jsonObject.get("request").toString();
                                 handleRequest(endpointId, userConsent);
+                            } else if (key.equals("calculation_result")) {
+                                String calculation_result = jsonObject.get("calculation_result").toString();
+                                String[] array_c = calculation_result.split(",");
+                                int s_itr = Integer.parseInt(jsonObject.get("s_itr").toString());
+                                int e_itr = Integer.parseInt(jsonObject.get("e_itr").toString());
+                                int r_a = Integer.parseInt(jsonObject.get("r_a").toString());
+                                int r_b = Integer.parseInt(jsonObject.get("r_b").toString());
+                                int c_a = Integer.parseInt(jsonObject.get("c_a").toString());
+                                int c_b = Integer.parseInt(jsonObject.get("c_b").toString());
+                                if (flag == 0) {
+                                    matrix_c = new int[r_a][c_b];
+                                    flag = 1;
+                                }
+
+                                int i = 0;
+                                for (int x = s_itr; x < e_itr; x++) {
+                                    for (int k = 0; k < r_b; k++) {
+                                        matrix_c[x][k] = Integer.parseInt(array_c[i]);
+                                        System.out.println("HERE" + matrix_c[x][k]);
+                                        i++;
+                                    }
+                                }
+                                for (int[] row : matrix_c) {
+                                    System.out.println("Matrix C RESULTTTTT");
+                                    System.out.println(Arrays.toString(row));
+                                }
                             }
                         }
                     } catch (JSONException e) {
@@ -181,9 +212,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void handleRequest(String endpointId, String userConsent) {
         statusText.append("\n" + "User Consent:" + userConsent);
-        if(userConsent.equals("yes")) {
+        if (userConsent.equals("yes")) {
             statusText.append("SEND MATRIX");
-        } else if(userConsent.equals("no")) {
+        } else if (userConsent.equals("no")) {
             connectionsClient.disconnectFromEndpoint(endpointId);
             connectedEndpointIds.remove(endpointId);
             statusText.append("\n" + "Disconnected ! Client not okay with it ! :( " + endpointId);
@@ -223,8 +254,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void enterMatrices(View view) {
         Intent activity2intent = new Intent(getApplicationContext(), TakeInput.class);
-        activity2intent.putStringArrayListExtra("slaves_id",connectedEndpointIds);
-//        activity2intent.putExtra("connectionsClient", (Parcelable) connectionsClient);
+        activity2intent.putStringArrayListExtra("slaves_id", connectedEndpointIds);
         startActivity(activity2intent);
     }
 }
