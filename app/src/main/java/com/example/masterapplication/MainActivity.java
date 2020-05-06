@@ -48,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private final String codeName = "master";
     private TextView statusText;
     private final ArrayList<String> connectedEndpointIds = new ArrayList<>();
+    private final ArrayList<String> pendingConnectionEndpointIds = new ArrayList<>();
     private final Map<String, Integer> endPointsBatteryLevelsMap = new HashMap<>();
     int[][] matrix_c;
     int flag = 0;
@@ -98,6 +99,7 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onEndpointLost(String endpointId) {
+                    connectedEndpointIds.remove(endpointId);
                     statusText.append("\n" + "Lost end point");
                     System.out.println("Lost end point" + endpointId);
                 }
@@ -108,16 +110,19 @@ public class MainActivity extends AppCompatActivity {
             new ConnectionLifecycleCallback() {
                 @Override
                 public void onConnectionInitiated(String endpointId, ConnectionInfo connectionInfo) {
+                    pendingConnectionEndpointIds.add(endpointId);
                     connectionsClient.acceptConnection(endpointId, payloadCallback);
-                    statusText.append("\n" + "Connection accepted");
+                    statusText.append("\n" + "Connection initiated");
                 }
 
                 @Override
                 public void onConnectionResult(String endpointId, ConnectionResolution result) {
                     if (result.getStatus().isSuccess()) {
                         connectedEndpointIds.add(endpointId);
+                        pendingConnectionEndpointIds.remove(endpointId);
                         statusText.append("\n" + "Connection successful!!" + connectedEndpointIds.get(0));
                     } else {
+                        pendingConnectionEndpointIds.remove(endpointId);
                         statusText.append("\n" + "Connection failed :(");
                     }
                 }
@@ -196,7 +201,7 @@ public class MainActivity extends AppCompatActivity {
             statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
             statusText.append("\n" + "Less battery level! Disconnected client with endpointId" + endpointId);
         }
-        Iterator<String> endpointsIterator = connectedEndpointIds.iterator();
+        Iterator<String> endpointsIterator = pendingConnectionEndpointIds.iterator();
         while (endpointsIterator.hasNext()) {
             JSONObject requestObject = new JSONObject();
             try {
