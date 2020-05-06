@@ -9,6 +9,10 @@ public class SharedVariables extends Application {
     private ArrayList<String> connectedEndpointIds = new ArrayList<>();
     HashMap<String, String> endpointIteratorMap = new HashMap<String, String>();
     private String matrix_a, matrix_b;
+    private int r_a;
+    private int c_a;
+    private int r_b;
+    private int c_b;
 
     public ArrayList<String> getConnectedEndpoints() {
         return connectedEndpointIds;
@@ -44,6 +48,39 @@ public class SharedVariables extends Application {
 
     public void setMatrix_b(String matrix_b) {
         this.matrix_b = matrix_b;
+    }
+
+    public void set_rows_a(int rows_a) {
+        this.r_a = rows_a;
+    }
+
+    public void set_rows_b(int rows_b) {
+        this.r_b = rows_b;
+    }
+
+    public void set_columns_a(int columns_a) {
+        this.c_a = columns_a;
+    }
+
+    public void set_columns_b(int columns_b) {
+        this.c_b = columns_b;
+    }
+
+
+    public int getRows_a() {
+        return r_a;
+    }
+
+    public int getColumns_a() {
+        return c_a;
+    }
+
+    public int getRows_b() {
+        return r_b;
+    }
+
+    public int getColumns_b() {
+        return c_b;
     }
 
 

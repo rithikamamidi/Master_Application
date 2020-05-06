@@ -48,15 +48,20 @@ public class TakeInput extends AppCompatActivity {
 
 
     public void compute(View view) {
-        int r_a = Integer.parseInt(rows_a.getText().toString());
-        int c_a = Integer.parseInt(columns_a.getText().toString());
-        int r_b = Integer.parseInt(rows_b.getText().toString());
-        int c_b = Integer.parseInt(columns_b.getText().toString());
+        int r_a = Integer.parseInt(String.valueOf(rows_a.getText()));
+        int c_a = Integer.parseInt(String.valueOf(columns_a.getText()));
+        int r_b = Integer.parseInt(String.valueOf(rows_b.getText()));
+        int c_b = Integer.parseInt(String.valueOf(columns_b.getText()));
 
         String matrix_a = matrix_A.getText().toString();
         String matrix_b = matrix_B.getText().toString();
+
         ((SharedVariables) TakeInput.this.getApplication()).setMatrix_a(matrix_a);
-        ((SharedVariables) TakeInput.this.getApplication()).setMatrix_a(matrix_b);
+        ((SharedVariables) TakeInput.this.getApplication()).setMatrix_b(matrix_b);
+        ((SharedVariables) TakeInput.this.getApplication()).set_rows_a(r_a);
+        ((SharedVariables) TakeInput.this.getApplication()).set_rows_b(r_b);
+        ((SharedVariables) TakeInput.this.getApplication()).set_columns_a(c_a);
+        ((SharedVariables) TakeInput.this.getApplication()).set_columns_b(c_b);
 
         connection_ids = ((SharedVariables) TakeInput.this.getApplication()).getConnectedEndpoints();
         int l = connection_ids.size();
