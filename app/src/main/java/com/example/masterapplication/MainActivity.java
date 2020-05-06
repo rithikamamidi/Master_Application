@@ -144,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onPayloadReceived(String endpointId, Payload payload) {
                     String payloadString = new String(payload.asBytes(), StandardCharsets.UTF_8);
-                    statusText.append("\n" + "Payload received:" + payloadString + "ENDPOINT:"+endpointId);
+                    statusText.append("\n" + "Payload received:" + payloadString + "ENDPOINT:" + endpointId);
                     try {
                         JSONObject jsonObject = new JSONObject(payloadString);
                         Iterator<String> keys = jsonObject.keys();
@@ -182,31 +182,6 @@ public class MainActivity extends AppCompatActivity {
                                 for (int[] row : matrix_c) {
                                     System.out.println("Matrix C RESULTTTTT");
                                     System.out.println(Arrays.toString(row));
-                                }
-
-                                if(failedEndpoints.size()!=0) {
-                                    String endpoint = failedEndpoints.get(0);
-                                    failedEndpoints.remove(0);
-                                    JSONObject payload_object = new JSONObject();
-                                    String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
-                                    String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
-                                    String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(endpoint);
-                                    String[] iterators= iteratorValue.split(",");
-                                    try {
-                                        payload_object.put("matrix_A", matrix_a);
-                                        payload_object.put("matrix_B", matrix_b);
-                                        payload_object.put("rows_a", r_a);
-                                        payload_object.put("columns_a", c_a);
-                                        payload_object.put("rows_b", r_b);
-                                        payload_object.put("columns_b", c_b);
-                                        payload_object.put("s_itr", Integer.parseInt(iterators[0]));
-                                        payload_object.put("e_itr", Integer.parseInt(iterators[1]));
-                                    } catch (JSONException e) {
-                                        e.printStackTrace();
-                                    }
-                                    connectionsClient.sendPayload(
-                                            endpoint, Payload.fromBytes(payload_object.toString().getBytes(StandardCharsets.UTF_8)));
-
                                 }
                             }
                         }
@@ -293,7 +268,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void enterMatrices(View view) {
         for (String endpointId : endpointResult.keySet())
-            endpointResult.put(endpointId,false);
+            endpointResult.put(endpointId, false);
         Intent activity2intent = new Intent(getApplicationContext(), TakeInput.class);
         connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
         activity2intent.putStringArrayListExtra("slaves_id", connectedEndpointIds);
@@ -303,7 +278,49 @@ public class MainActivity extends AppCompatActivity {
     public void handleFaultTolerance(String endpointId) {
         if (endpointResult.get(endpointId) == false) {
             failedEndpoints.add(endpointId);
-            //assign result to other slave
+            if (failedEndpoints.size() != 0) {
+                String failedendpoint = failedEndpoints.get(0);
+                String endpoint = null;
+                Iterator hmiterator = endpointResult.entrySet().iterator();
+                while (hmiterator.hasNext()) {
+                    Map.Entry pair = (Map.Entry) hmiterator.next();
+                    if (pair.getValue().equals(true)) {
+                        endpoint = pair.getKey().toString();
+                        break;
+                    }
+                }
+                if (endpoint != null) {
+                    JSONObject payload_object = new JSONObject();
+                    String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
+                    String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
+                    String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(failedendpoint);
+                    int r_a = ((SharedVariables) MainActivity.this.getApplication()).getRows_a();
+                    int c_a = ((SharedVariables) MainActivity.this.getApplication()).getColumns_a();
+                    int r_b = ((SharedVariables) MainActivity.this.getApplication()).getRows_b();
+                    int c_b = ((SharedVariables) MainActivity.this.getApplication()).getColumns_b();
+                    String[] iterators = iteratorValue.split(",");
+                    System.out.println("Printing " + r_b);
+                    System.out.println(c_b);
+                    try {
+                        payload_object.put("matrix_A", matrix_a);
+                        payload_object.put("matrix_B", matrix_b);
+                        payload_object.put("rows_a", r_a);
+                        payload_object.put("columns_a", c_a);
+                        payload_object.put("rows_b", r_b);
+                        payload_object.put("columns_b", c_b);
+                        payload_object.put("s_itr", Integer.parseInt(iterators[0]));
+                        payload_object.put("e_itr", Integer.parseInt(iterators[1]));
+
+                        failedEndpoints.remove(0);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                    System.out.println("Before sending payload, payload_object : " + payload_object.toString());
+                    connectionsClient.sendPayload(
+                            endpoint, Payload.fromBytes(payload_object.toString().getBytes(StandardCharsets.UTF_8)));
+
+                }
+            }
         }
     }
 }
