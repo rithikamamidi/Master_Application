@@ -10,7 +10,6 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.Parcelable;
 import android.view.View;
 import android.widget.TextView;
 
@@ -40,16 +39,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class MainActivity extends AppCompatActivity {
     private static final Strategy STRATEGY = Strategy.P2P_CLUSTER;
     private ConnectionsClient connectionsClient;
     private final String codeName = "master";
     private TextView statusText;
-    private final ArrayList<String> connectedEndpointIds = new ArrayList<>();
+    private ArrayList<String> connectedEndpointIds = new ArrayList<>();
     private final ArrayList<String> pendingConnectionEndpointIds = new ArrayList<>();
     private final Map<String, Integer> endPointsBatteryLevelsMap = new HashMap<>();
+    private final Map<String, Boolean> endpointResult = new HashMap<>();
+    private final ArrayList<String> failedEndpoints = new ArrayList<>();
     int[][] matrix_c;
     int flag = 0;
 
@@ -99,7 +99,8 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onEndpointLost(String endpointId) {
-                    connectedEndpointIds.remove(endpointId);
+                    handleFaultTolerance(endpointId);
+                    ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
                     statusText.append("\n" + "Lost end point");
                     System.out.println("Lost end point" + endpointId);
                 }
@@ -118,8 +119,10 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onConnectionResult(String endpointId, ConnectionResolution result) {
                     if (result.getStatus().isSuccess()) {
-                        connectedEndpointIds.add(endpointId);
+                        ((SharedVariables) MainActivity.this.getApplication()).addConnectedId(endpointId);
+                        endpointResult.put(endpointId, false);
                         pendingConnectionEndpointIds.remove(endpointId);
+                        connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
                         statusText.append("\n" + "Connection successful!!" + connectedEndpointIds.get(0));
                     } else {
                         pendingConnectionEndpointIds.remove(endpointId);
@@ -129,7 +132,8 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onDisconnected(String endpointId) {
-                    connectedEndpointIds.remove(endpointId);
+                    ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
+                    handleFaultTolerance(endpointId);
                     statusText.append("\n" + "disconnected from the other end");
                 }
             };
@@ -140,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onPayloadReceived(String endpointId, Payload payload) {
                     String payloadString = new String(payload.asBytes(), StandardCharsets.UTF_8);
-                    statusText.append("\n" + "Payload received:" + payloadString);
+                    statusText.append("\n" + "Payload received:" + payloadString + "ENDPOINT:"+endpointId);
                     try {
                         JSONObject jsonObject = new JSONObject(payloadString);
                         Iterator<String> keys = jsonObject.keys();
@@ -152,6 +156,8 @@ public class MainActivity extends AppCompatActivity {
                                 String userConsent = jsonObject.get("request").toString();
                                 handleRequest(endpointId, userConsent);
                             } else if (key.equals("calculation_result")) {
+                                endpointResult.put(endpointId, true);
+
                                 String calculation_result = jsonObject.get("calculation_result").toString();
                                 String[] array_c = calculation_result.split(",");
                                 int s_itr = Integer.parseInt(jsonObject.get("s_itr").toString());
@@ -177,6 +183,31 @@ public class MainActivity extends AppCompatActivity {
                                     System.out.println("Matrix C RESULTTTTT");
                                     System.out.println(Arrays.toString(row));
                                 }
+
+                                if(failedEndpoints.size()!=0) {
+                                    String endpoint = failedEndpoints.get(0);
+                                    failedEndpoints.remove(0);
+                                    JSONObject payload_object = new JSONObject();
+                                    String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
+                                    String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
+                                    String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(endpoint);
+                                    String[] iterators= iteratorValue.split(",");
+                                    try {
+                                        payload_object.put("matrix_A", matrix_a);
+                                        payload_object.put("matrix_B", matrix_b);
+                                        payload_object.put("rows_a", r_a);
+                                        payload_object.put("columns_a", c_a);
+                                        payload_object.put("rows_b", r_b);
+                                        payload_object.put("columns_b", c_b);
+                                        payload_object.put("s_itr", Integer.parseInt(iterators[0]));
+                                        payload_object.put("e_itr", Integer.parseInt(iterators[1]));
+                                    } catch (JSONException e) {
+                                        e.printStackTrace();
+                                    }
+                                    connectionsClient.sendPayload(
+                                            endpoint, Payload.fromBytes(payload_object.toString().getBytes(StandardCharsets.UTF_8)));
+
+                                }
                             }
                         }
                     } catch (JSONException e) {
@@ -192,15 +223,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void handleBatteryLevel(String endpointId, JSONObject jsonObject) throws JSONException {
         int batteryPercentage = Integer.parseInt(jsonObject.get("batteryLevel").toString());
+        connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
         statusText.append("\n" + "BEFORE CONNECTED ENDPOINTS" + connectedEndpointIds.size());
         endPointsBatteryLevelsMap.put(endpointId, batteryPercentage);
         int thresholdBatteryPercentage = 10;
         if (batteryPercentage < thresholdBatteryPercentage) {
             connectionsClient.disconnectFromEndpoint(endpointId);
-            connectedEndpointIds.remove(endpointId);
+            ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
+            connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
             statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
             statusText.append("\n" + "Less battery level! Disconnected client with endpointId" + endpointId);
         }
+        connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
         Iterator<String> endpointsIterator = connectedEndpointIds.iterator();
         while (endpointsIterator.hasNext()) {
             JSONObject requestObject = new JSONObject();
@@ -221,7 +255,7 @@ public class MainActivity extends AppCompatActivity {
             statusText.append("SEND MATRIX");
         } else if (userConsent.equals("no")) {
             connectionsClient.disconnectFromEndpoint(endpointId);
-            connectedEndpointIds.remove(endpointId);
+            ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
             statusText.append("\n" + "Disconnected ! Client not okay with it ! :( " + endpointId);
         }
     }
@@ -258,8 +292,18 @@ public class MainActivity extends AppCompatActivity {
 
 
     public void enterMatrices(View view) {
+        for (String endpointId : endpointResult.keySet())
+            endpointResult.put(endpointId,false);
         Intent activity2intent = new Intent(getApplicationContext(), TakeInput.class);
+        connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
         activity2intent.putStringArrayListExtra("slaves_id", connectedEndpointIds);
         startActivity(activity2intent);
+    }
+
+    public void handleFaultTolerance(String endpointId) {
+        if (endpointResult.get(endpointId) == false) {
+            failedEndpoints.add(endpointId);
+            //assign result to other slave
+        }
     }
 }

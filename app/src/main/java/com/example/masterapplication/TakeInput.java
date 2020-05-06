@@ -11,16 +11,12 @@ import android.widget.TextView;
 import com.google.android.gms.nearby.Nearby;
 import com.google.android.gms.nearby.connection.ConnectionsClient;
 import com.google.android.gms.nearby.connection.Payload;
-import com.google.android.gms.nearby.connection.PayloadCallback;
-import com.google.android.gms.nearby.connection.PayloadTransferUpdate;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 
 public class TakeInput extends AppCompatActivity {
 
@@ -38,7 +34,7 @@ public class TakeInput extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
-        connection_ids = getIntent().getStringArrayListExtra("slaves_id");
+        connection_ids = ((SharedVariables) TakeInput.this.getApplication()).getConnectedEndpoints();
         setContentView(R.layout.activity_take_input);
         connectionsClient = Nearby.getConnectionsClient(this);
         rows_a = findViewById(R.id.rows_a);
@@ -59,7 +55,10 @@ public class TakeInput extends AppCompatActivity {
 
         String matrix_a = matrix_A.getText().toString();
         String matrix_b = matrix_B.getText().toString();
+        ((SharedVariables) TakeInput.this.getApplication()).setMatrix_a(matrix_a);
+        ((SharedVariables) TakeInput.this.getApplication()).setMatrix_a(matrix_b);
 
+        connection_ids = ((SharedVariables) TakeInput.this.getApplication()).getConnectedEndpoints();
         int l = connection_ids.size();
         int start_itr, end_itr, p;
         p = r_a / l;
@@ -87,6 +86,8 @@ public class TakeInput extends AppCompatActivity {
                 e.printStackTrace();
             }
 
+            String iteratorValues = start_itr + "," + end_itr;
+            ((SharedVariables) TakeInput.this.getApplication()).putEndPointAndIteratorValues(connection_ids.get(i), iteratorValues);
             connectionsClient.sendPayload(
                     connection_ids.get(i), Payload.fromBytes(payload_object.toString().getBytes(StandardCharsets.UTF_8)));
             finish();
