@@ -9,6 +9,11 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
@@ -31,12 +36,14 @@ import com.google.android.gms.tasks.OnSuccessListener;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 
@@ -48,10 +55,20 @@ public class MainActivity extends AppCompatActivity {
     private ArrayList<String> connectedEndpointIds = new ArrayList<>();
     private final ArrayList<String> pendingConnectionEndpointIds = new ArrayList<>();
     private final Map<String, Integer> endPointsBatteryLevelsMap = new HashMap<>();
+    private final Map<String, Boolean> endPointsRequestSent = new HashMap<>();
     private final Map<String, Boolean> endpointResult = new HashMap<>();
     private final ArrayList<String> failedEndpoints = new ArrayList<>();
     int[][] matrix_c;
     int flag = 0;
+    private double distanceThreshold = 2.0;
+    private double lati;
+    public double jLatitude;
+    public double jLongitude;
+    private double longi;
+    private TextView latitude_GPS;
+    private TextView longitude_GPS;
+    LocationManager locationManager;
+    LocationListener locationListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,7 +77,73 @@ public class MainActivity extends AppCompatActivity {
         statusText = findViewById(R.id.status_text);
         checkAndRequestPermissions();
         connectionsClient = Nearby.getConnectionsClient(this);
+        latitude_GPS = findViewById(R.id.latitude);
+        longitude_GPS = findViewById(R.id.longitude);
+        locationManager = (LocationManager) this.getSystemService(LOCATION_SERVICE);
+        boolean isGPS_enabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        System.out.println("boolean Value:" + isGPS_enabled);
 
+        if (isGPS_enabled) {
+            locationListener = new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    double longitude = location.getLongitude();
+                    double latitude = location.getLatitude();
+                    try {
+                        Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
+                        List<Address> addressList = geocoder.getFromLocation(latitude, longitude, 1);
+                        lati = addressList.get(0).getLatitude();
+                        jLatitude = addressList.get(0).getLatitude();
+                        jLongitude = addressList.get(0).getLongitude();
+                        longi = addressList.get(0).getLongitude();
+                        latitude_GPS.setText("latitude:" + lati);
+                        longitude_GPS.setText("longitude:" + longi);
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onStatusChanged(String provider, int status, Bundle extras) {
+
+                }
+
+                @Override
+                public void onProviderEnabled(String provider) {
+
+                }
+
+                @Override
+                public void onProviderDisabled(String provider) {
+
+                }
+            };
+        }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+        } else {
+            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+        }
+
+
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+                latitude_GPS.setText("getting Location");
+                longitude_GPS.setText("getting Location");
+            }
+        } else {
+            latitude_GPS.setText("denied");
+            longitude_GPS.setText("denied");
+        }
     }
 
     private void startDiscovery() {
@@ -121,6 +204,7 @@ public class MainActivity extends AppCompatActivity {
                     if (result.getStatus().isSuccess()) {
                         ((SharedVariables) MainActivity.this.getApplication()).addConnectedId(endpointId);
                         endpointResult.put(endpointId, false);
+                        endPointsRequestSent.put(endpointId, false);
                         pendingConnectionEndpointIds.remove(endpointId);
                         connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
                         statusText.append("\n" + "Connection successful!!" + connectedEndpointIds.get(0));
@@ -132,6 +216,7 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onDisconnected(String endpointId) {
+                    endPointsRequestSent.remove(endpointId);
                     ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
                     handleFaultTolerance(endpointId);
                     statusText.append("\n" + "disconnected from the other end");
@@ -144,7 +229,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onPayloadReceived(String endpointId, Payload payload) {
                     String payloadString = new String(payload.asBytes(), StandardCharsets.UTF_8);
-                    statusText.append("\n" + "Payload received:" + payloadString + "ENDPOINT:"+endpointId);
+                    statusText.append("\n" + "Payload received:" + payloadString + "ENDPOINT:" + endpointId);
                     try {
                         JSONObject jsonObject = new JSONObject(payloadString);
                         Iterator<String> keys = jsonObject.keys();
@@ -152,6 +237,8 @@ public class MainActivity extends AppCompatActivity {
                             String key = keys.next();
                             if (key.equals("batteryLevel")) {
                                 handleBatteryLevel(endpointId, jsonObject);
+                            } else if (key.equals("location")) {
+                                handleLocation(endpointId, jsonObject);
                             } else if (key.equals("request")) {
                                 String userConsent = jsonObject.get("request").toString();
                                 handleRequest(endpointId, userConsent);
@@ -184,14 +271,14 @@ public class MainActivity extends AppCompatActivity {
                                     System.out.println(Arrays.toString(row));
                                 }
 
-                                if(failedEndpoints.size()!=0) {
+                                if (failedEndpoints.size() != 0) {
                                     String endpoint = failedEndpoints.get(0);
                                     failedEndpoints.remove(0);
                                     JSONObject payload_object = new JSONObject();
                                     String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
                                     String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
                                     String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(endpoint);
-                                    String[] iterators= iteratorValue.split(",");
+                                    String[] iterators = iteratorValue.split(",");
                                     try {
                                         payload_object.put("matrix_A", matrix_a);
                                         payload_object.put("matrix_B", matrix_b);
@@ -229,6 +316,7 @@ public class MainActivity extends AppCompatActivity {
         int thresholdBatteryPercentage = 10;
         if (batteryPercentage < thresholdBatteryPercentage) {
             connectionsClient.disconnectFromEndpoint(endpointId);
+            endPointsRequestSent.remove(endpointId);
             ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
             connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
             statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
@@ -243,11 +331,44 @@ public class MainActivity extends AppCompatActivity {
             } catch (JSONException e) {
                 e.printStackTrace();
             }
-            connectionsClient.sendPayload(
-                    endpointsIterator.next(), Payload.fromBytes(requestObject.toString().getBytes(StandardCharsets.UTF_8)));
-            statusText.append("\n" + "Sent Request to:" + endpointId);
+            String endpointId1 = endpointsIterator.next();
+            if (endPointsRequestSent.get(endpointId1) != true) {
+                endPointsRequestSent.put(endpointId1, true);
+                connectionsClient.sendPayload(
+                        endpointId1, Payload.fromBytes(requestObject.toString().getBytes(StandardCharsets.UTF_8)));
+                statusText.append("\n" + "Sent Request to:" + endpointId1);
+            }
+
         }
     }
+
+    private void handleLocation(String endpointId, JSONObject jsonObject) throws JSONException {
+        String locationString = jsonObject.get("location").toString();
+        JSONObject location = new JSONObject(locationString);
+        System.out.println("HELLOOO LOCATIOON" + location.get("latitude") + "    " + location.get("longitude"));
+        double lati = (double) location.get("latitude");
+        double longi = (double) location.get("longitude");
+        //Current location//jLatitude,jLongitude
+        Location master = new Location("");
+        Location dest = new Location("");
+
+        master.setLatitude(jLatitude);
+        master.setLongitude(jLongitude);
+
+        dest.setLatitude(lati);
+        dest.setLongitude(longi);
+        float dist = master.distanceTo(dest);
+        System.out.println("DISTANCE" + dist);
+        if (dist > distanceThreshold) {
+            connectionsClient.disconnectFromEndpoint(endpointId);
+            endPointsRequestSent.remove(endpointId);
+            ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
+            connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
+            statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
+            statusText.append("\n" + "Far from client ! Disconnected client with endpointId" + endpointId);
+        }
+    }
+
 
     private void handleRequest(String endpointId, String userConsent) {
         statusText.append("\n" + "User Consent:" + userConsent);
@@ -255,6 +376,7 @@ public class MainActivity extends AppCompatActivity {
             statusText.append("SEND MATRIX");
         } else if (userConsent.equals("no")) {
             connectionsClient.disconnectFromEndpoint(endpointId);
+            endPointsRequestSent.remove(endpointId);
             ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
             statusText.append("\n" + "Disconnected ! Client not okay with it ! :( " + endpointId);
         }
@@ -287,13 +409,19 @@ public class MainActivity extends AppCompatActivity {
                     (new String[listPermissionsNeeded.size()]), 1);
             return false;
         }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_NETWORK_STATE) != PackageManager.PERMISSION_GRANTED) {
+
+            return false;
+        }
         return true;
     }
 
 
     public void enterMatrices(View view) {
         for (String endpointId : endpointResult.keySet())
-            endpointResult.put(endpointId,false);
+            endpointResult.put(endpointId, false);
         Intent activity2intent = new Intent(getApplicationContext(), TakeInput.class);
         connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
         activity2intent.putStringArrayListExtra("slaves_id", connectedEndpointIds);
