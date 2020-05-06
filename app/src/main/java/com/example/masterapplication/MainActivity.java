@@ -201,7 +201,7 @@ public class MainActivity extends AppCompatActivity {
             statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
             statusText.append("\n" + "Less battery level! Disconnected client with endpointId" + endpointId);
         }
-        Iterator<String> endpointsIterator = pendingConnectionEndpointIds.iterator();
+        Iterator<String> endpointsIterator = connectedEndpointIds.iterator();
         while (endpointsIterator.hasNext()) {
             JSONObject requestObject = new JSONObject();
             try {
