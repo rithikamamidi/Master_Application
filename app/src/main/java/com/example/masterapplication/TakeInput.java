@@ -34,11 +34,6 @@ public class TakeInput extends AppCompatActivity {
     EditText matrix_A;
     EditText matrix_B;
 
-    int r_a;
-    int c_a;
-    int r_b;
-    int c_b;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -56,9 +51,7 @@ public class TakeInput extends AppCompatActivity {
     }
 
 
-    public void compute(View view) throws JSONException {
-
-
+    public void compute(View view) {
         int r_a = Integer.parseInt(rows_a.getText().toString());
         int c_a = Integer.parseInt(columns_a.getText().toString());
         int r_b = Integer.parseInt(rows_b.getText().toString());
@@ -96,44 +89,7 @@ public class TakeInput extends AppCompatActivity {
 
             connectionsClient.sendPayload(
                     connection_ids.get(i), Payload.fromBytes(payload_object.toString().getBytes(StandardCharsets.UTF_8)));
+            finish();
         }
-
-
-        /*int[][] A = new int[r_a][c_a];
-        int[][] B = new int[r_b][c_b];
-        int k=0;
-
-        for(int i=0;i<r_a;i++)
-        {
-            for(int j=0;j<c_a;j++) {
-                A[i][j] = Integer.valueOf(S_A.charAt(k));
-                k = k+2;
-            }
-        }
-        k=0;
-
-        for(int i=0;i<r_b;i++)
-        {
-            for(int j=0;j<r_b;j++)
-            {
-                B[i][j] = Integer.valueOf(S_B.charAt(k));
-                k = k+2;
-            }
-        }
-
-        int[][] c = new int[r_a][c_b];
-        for(int i=start_itr;i<end_itr;i++)
-        {
-            for(int j=0;j<c_b;j++)
-            {
-                for(int k=0;k<r_b;k++)
-                {
-                    c[i][j] = c[i][j]+a[i][k]+b[k][j];
-                }
-            }
-        }
-        */
-
-
     }
 }
