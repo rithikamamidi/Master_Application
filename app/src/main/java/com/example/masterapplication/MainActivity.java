@@ -92,12 +92,16 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
                         List<Address> addressList = geocoder.getFromLocation(latitude, longitude, 1);
-                        lati = addressList.get(0).getLatitude();
-                        jLatitude = addressList.get(0).getLatitude();
-                        jLongitude = addressList.get(0).getLongitude();
-                        longi = addressList.get(0).getLongitude();
-                        latitude_GPS.setText("latitude:" + lati);
-                        longitude_GPS.setText("longitude:" + longi);
+                        if(addressList.get(0)!=null) {
+                            lati = addressList.get(0).getLatitude();
+                            jLatitude = addressList.get(0).getLatitude();
+                            jLongitude = addressList.get(0).getLongitude();
+                            longi = addressList.get(0).getLongitude();
+                            latitude_GPS.setText("latitude:" + lati);
+                            longitude_GPS.setText("longitude:" + longi);
+
+                        }
+
 
                     } catch (IOException e) {
                         e.printStackTrace();
@@ -271,30 +275,19 @@ public class MainActivity extends AppCompatActivity {
                                     System.out.println(Arrays.toString(row));
                                 }
 
-                                if (failedEndpoints.size() != 0) {
-                                    String endpoint = failedEndpoints.get(0);
-                                    failedEndpoints.remove(0);
-                                    JSONObject payload_object = new JSONObject();
-                                    String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
-                                    String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
-                                    String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(endpoint);
-                                    String[] iterators = iteratorValue.split(",");
-                                    try {
-                                        payload_object.put("matrix_A", matrix_a);
-                                        payload_object.put("matrix_B", matrix_b);
-                                        payload_object.put("rows_a", r_a);
-                                        payload_object.put("columns_a", c_a);
-                                        payload_object.put("rows_b", r_b);
-                                        payload_object.put("columns_b", c_b);
-                                        payload_object.put("s_itr", Integer.parseInt(iterators[0]));
-                                        payload_object.put("e_itr", Integer.parseInt(iterators[1]));
-                                    } catch (JSONException e) {
-                                        e.printStackTrace();
-                                    }
-                                    connectionsClient.sendPayload(
-                                            endpoint, Payload.fromBytes(payload_object.toString().getBytes(StandardCharsets.UTF_8)));
-
-                                }
+//                                if (failedEndpoints.size() != 0) {
+//                                    String endpoint = failedEndpoints.get(0);
+//                                    failedEndpoints.remove(0);
+//                                    JSONObject payload_object = new JSONObject();
+//                                    String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
+//                                    String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
+//                                    String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(endpoint);
+//                                    String[] iterators = iteratorValue.split(",");
+//                                    try {
+//                                        payload_object.put("matrix_A", matrix_a);
+//                                        payload_object.put("matrix_B", matrix_b);
+//                                        payload_object.put("rows_a", r_a);
+//                                        payload_object.put("columns_a", c_a);
                             }
                         }
                     } catch (JSONException e) {
@@ -431,6 +424,50 @@ public class MainActivity extends AppCompatActivity {
     public void handleFaultTolerance(String endpointId) {
         if (endpointResult.get(endpointId) == false) {
             failedEndpoints.add(endpointId);
+
+            if (failedEndpoints.size() != 0) {
+                String failedendpoint = failedEndpoints.get(0);
+                String endpoint = null;
+                Iterator hmiterator = endpointResult.entrySet().iterator();
+                while (hmiterator.hasNext()) {
+                    Map.Entry pair = (Map.Entry) hmiterator.next();
+                    if (pair.getValue().equals(true)) {
+                        endpoint = pair.getKey().toString();
+                        break;
+                    }
+                }
+                if (endpoint != null) {
+                    JSONObject payload_object = new JSONObject();
+                    String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
+                    String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
+                    String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(failedendpoint);
+                    int r_a = ((SharedVariables) MainActivity.this.getApplication()).getRows_a();
+                    int c_a = ((SharedVariables) MainActivity.this.getApplication()).getColumns_a();
+                    int r_b = ((SharedVariables) MainActivity.this.getApplication()).getRows_b();
+                    int c_b = ((SharedVariables) MainActivity.this.getApplication()).getColumns_b();
+                    String[] iterators = iteratorValue.split(",");
+                    System.out.println("Printing " + r_b);
+                    System.out.println(c_b);
+                    try {
+                        payload_object.put("matrix_A", matrix_a);
+                        payload_object.put("matrix_B", matrix_b);
+                        payload_object.put("rows_a", r_a);
+                        payload_object.put("columns_a", c_a);
+                        payload_object.put("rows_b", r_b);
+                        payload_object.put("columns_b", c_b);
+                        payload_object.put("s_itr", Integer.parseInt(iterators[0]));
+                        payload_object.put("e_itr", Integer.parseInt(iterators[1]));
+
+                        failedEndpoints.remove(0);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                    System.out.println("Before sending payload, payload_object : " + payload_object.toString());
+                    connectionsClient.sendPayload(
+                            endpoint, Payload.fromBytes(payload_object.toString().getBytes(StandardCharsets.UTF_8)));
+
+                }
+            }
             //assign result to other slave
         }
     }
