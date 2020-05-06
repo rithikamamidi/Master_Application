@@ -32,6 +32,18 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:onClick="enterMatrices"
-            android:text="Enter Matrices A and B"/>
+            android:text="Enter Matrices A and B" />
+
+        <TextView
+            android:id="@+id/latitude"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Latitude" />
+
+        <TextView
+            android:id="@+id/longitude"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Longitude" />
     </LinearLayout>
 </ScrollView>
