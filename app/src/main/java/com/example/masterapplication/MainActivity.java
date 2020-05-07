@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
@@ -15,6 +16,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.View;
 import android.widget.TextView;
 
@@ -36,7 +38,13 @@ import com.google.android.gms.tasks.OnSuccessListener;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private ConnectionsClient connectionsClient;
     private final String codeName = "master";
     private TextView statusText;
+    private TextView executionTime;
     private ArrayList<String> connectedEndpointIds = new ArrayList<>();
     private final ArrayList<String> pendingConnectionEndpointIds = new ArrayList<>();
     private final Map<String, Integer> endPointsBatteryLevelsMap = new HashMap<>();
@@ -60,7 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private final ArrayList<String> failedEndpoints = new ArrayList<>();
     int[][] matrix_c;
     int flag = 0;
-    private double distanceThreshold = 2.0;
+    private double distanceThreshold = 20.0;
     private double lati;
     public double jLatitude;
     public double jLongitude;
@@ -69,9 +78,17 @@ public class MainActivity extends AppCompatActivity {
     private TextView longitude_GPS;
     LocationManager locationManager;
     LocationListener locationListener;
+    public long startTime;
+    public static long endTime;
+    public static long duration;
+    private String path = Environment.getExternalStorageDirectory().getAbsolutePath();
+    private String fileContents;
+    public static long duration_master;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         statusText = findViewById(R.id.status_text);
@@ -92,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
                         List<Address> addressList = geocoder.getFromLocation(latitude, longitude, 1);
-                        if(addressList.get(0)!=null) {
+                        if (addressList.get(0) != null) {
                             lati = addressList.get(0).getLatitude();
                             jLatitude = addressList.get(0).getLatitude();
                             jLongitude = addressList.get(0).getLongitude();
@@ -145,8 +162,8 @@ public class MainActivity extends AppCompatActivity {
                 longitude_GPS.setText("getting Location");
             }
         } else {
-            latitude_GPS.setText("denied");
-            longitude_GPS.setText("denied");
+            latitude_GPS.setText("getting latitude");
+            longitude_GPS.setText("getting longitude");
         }
     }
 
@@ -159,7 +176,7 @@ public class MainActivity extends AppCompatActivity {
                         new OnSuccessListener<Void>() {
                             @Override
                             public void onSuccess(Void unused) {
-                                statusText.append("\n" + "Started discovery");
+                                statusText.append("\n" + "Started discovery for clients");
                                 System.out.println("Started discovery");
                             }
                         })
@@ -179,8 +196,8 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onEndpointFound(String endpointId, DiscoveredEndpointInfo info) {
                     System.out.println("Found end point" + endpointId + info);
-                    statusText.append("\n" + "Found end point" + endpointId + info);
-                    statusText.append("\n" + "Requesting connection" + endpointId);
+//                    statusText.append("\n" + "Found end point" + endpointId + info);
+//                    statusText.append("\n" + "Requesting connection" + endpointId);
                     connectionsClient.requestConnection(codeName, endpointId, connectionLifecycleCallback);
                 }
 
@@ -188,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onEndpointLost(String endpointId) {
                     handleFaultTolerance(endpointId);
                     ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
-                    statusText.append("\n" + "Lost end point");
+                    statusText.append("\n" + "Lost end point:"+ endpointId);
                     System.out.println("Lost end point" + endpointId);
                 }
             };
@@ -200,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onConnectionInitiated(String endpointId, ConnectionInfo connectionInfo) {
                     pendingConnectionEndpointIds.add(endpointId);
                     connectionsClient.acceptConnection(endpointId, payloadCallback);
-                    statusText.append("\n" + "Connection initiated");
+//                    statusText.append("\n" + "Connection initiated");
                 }
 
                 @Override
@@ -211,10 +228,10 @@ public class MainActivity extends AppCompatActivity {
                         endPointsRequestSent.put(endpointId, false);
                         pendingConnectionEndpointIds.remove(endpointId);
                         connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
-                        statusText.append("\n" + "Connection successful!!" + connectedEndpointIds.get(0));
+                        statusText.append("\n" + "Connection successful!! with client id: " + endpointId);
                     } else {
                         pendingConnectionEndpointIds.remove(endpointId);
-                        statusText.append("\n" + "Connection failed :(");
+                        statusText.append("\n" + "Connection failed :(" + endpointId);
                     }
                 }
 
@@ -223,7 +240,7 @@ public class MainActivity extends AppCompatActivity {
                     endPointsRequestSent.remove(endpointId);
                     ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
                     handleFaultTolerance(endpointId);
-                    statusText.append("\n" + "disconnected from the other end");
+                    statusText.append("\n" + "disconnected from the other end"+ endpointId);
                 }
             };
 
@@ -233,7 +250,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onPayloadReceived(String endpointId, Payload payload) {
                     String payloadString = new String(payload.asBytes(), StandardCharsets.UTF_8);
-                    statusText.append("\n" + "Payload received:" + payloadString + "ENDPOINT:" + endpointId);
+//                    statusText.append("\n" + "Payload received:" + payloadString + "ENDPOINT:" + endpointId);
                     try {
                         JSONObject jsonObject = new JSONObject(payloadString);
                         Iterator<String> keys = jsonObject.keys();
@@ -247,6 +264,7 @@ public class MainActivity extends AppCompatActivity {
                                 String userConsent = jsonObject.get("request").toString();
                                 handleRequest(endpointId, userConsent);
                             } else if (key.equals("calculation_result")) {
+                                statusText.append("\n" + "Computation result received from endpoint:" + endpointId);
                                 endpointResult.put(endpointId, true);
 
                                 String calculation_result = jsonObject.get("calculation_result").toString();
@@ -275,38 +293,43 @@ public class MainActivity extends AppCompatActivity {
                                     System.out.println(Arrays.toString(row));
                                 }
 
-//                                if (failedEndpoints.size() != 0) {
-//                                    String endpoint = failedEndpoints.get(0);
-//                                    failedEndpoints.remove(0);
-//                                    JSONObject payload_object = new JSONObject();
-//                                    String matrix_a = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_a();
-//                                    String matrix_b = ((SharedVariables) MainActivity.this.getApplication()).getMatrix_b();
-//                                    String iteratorValue = ((SharedVariables) MainActivity.this.getApplication()).getIteratorValueForEndpoint(endpoint);
-//                                    String[] iterators = iteratorValue.split(",");
-//                                    try {
-//                                        payload_object.put("matrix_A", matrix_a);
-//                                        payload_object.put("matrix_B", matrix_b);
-//                                        payload_object.put("rows_a", r_a);
-//                                        payload_object.put("columns_a", c_a);
+                                for (Map.Entry<String, Boolean> entry : endpointResult.entrySet()) {
+                                    System.out.println("In testtttttttt");
+                                    if (entry.getValue() == false) {
+                                        break;
+                                    }
+                                    TextView text = findViewById(R.id.result);
+                                    String result = "";
+                                    for (int[] row : matrix_c)
+                                        result+= Arrays.toString(row)+"\n";
+                                    text.setText(result);
+                                    endTime = System.currentTimeMillis();
+                                    duration = (endTime - TakeInput.startTime);
+                                    executionTime = findViewById(R.id.et);
+                                    executionTime.setText("Execution Time on distributed network including network latency:" + duration + "ms");
+                                }
+
                             }
                         }
                     } catch (JSONException e) {
-                        statusText.append("\n" + "Not a JSON object");
+//                        statusText.append("\n" + "Not a JSON object");
                     }
                 }
 
                 @Override
                 public void onPayloadTransferUpdate(String endpointId, PayloadTransferUpdate update) {
-                    statusText.append("\n" + "Payload transfer update");
+//                    statusText.append("\n" + "Payload transfer update");
                 }
             };
 
     private void handleBatteryLevel(String endpointId, JSONObject jsonObject) throws JSONException {
         int batteryPercentage = Integer.parseInt(jsonObject.get("batteryLevel").toString());
         connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
-        statusText.append("\n" + "BEFORE CONNECTED ENDPOINTS" + connectedEndpointIds.size());
+//        statusText.append("\n" + "BEFORE CONNECTED ENDPOINTS" + connectedEndpointIds.size());
         endPointsBatteryLevelsMap.put(endpointId, batteryPercentage);
-        int thresholdBatteryPercentage = 10;
+        method1(endPointsBatteryLevelsMap);
+
+        int thresholdBatteryPercentage = 1;
         if (batteryPercentage < thresholdBatteryPercentage) {
             connectionsClient.disconnectFromEndpoint(endpointId);
             endPointsRequestSent.remove(endpointId);
@@ -329,9 +352,23 @@ public class MainActivity extends AppCompatActivity {
                 endPointsRequestSent.put(endpointId1, true);
                 connectionsClient.sendPayload(
                         endpointId1, Payload.fromBytes(requestObject.toString().getBytes(StandardCharsets.UTF_8)));
-                statusText.append("\n" + "Sent Request to:" + endpointId1);
+//                statusText.append("\n" + "Sent Request to:" + endpointId1);
             }
 
+        }
+    }
+
+    public void method1(Map<String, Integer> map) {
+        try {
+            FileOutputStream fileOutputStream = this.openFileOutput("myMap.txt", Context.MODE_PRIVATE);
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(fileOutputStream);
+            System.out.println("Saved to myMap.txt");
+
+            objectOutputStream.writeObject(map);
+            objectOutputStream.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -357,21 +394,21 @@ public class MainActivity extends AppCompatActivity {
             endPointsRequestSent.remove(endpointId);
             ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
             connectedEndpointIds = ((SharedVariables) MainActivity.this.getApplication()).getConnectedEndpoints();
-            statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
-            statusText.append("\n" + "Far from client ! Disconnected client with endpointId" + endpointId);
+//            statusText.append("\n" + "CONNECTED ENDPOINTS" + connectedEndpointIds.size());
+            statusText.append("\n" + "Far from master ! Disconnected client with endpointId" + endpointId);
         }
     }
 
 
     private void handleRequest(String endpointId, String userConsent) {
-        statusText.append("\n" + "User Consent:" + userConsent);
+//        statusText.append("\n" + "User Consent:" + userConsent);
         if (userConsent.equals("yes")) {
-            statusText.append("SEND MATRIX");
+//            statusText.append("SEND MATRIX");
         } else if (userConsent.equals("no")) {
             connectionsClient.disconnectFromEndpoint(endpointId);
             endPointsRequestSent.remove(endpointId);
             ((SharedVariables) MainActivity.this.getApplication()).removeConnectedId(endpointId);
-            statusText.append("\n" + "Disconnected ! Client not okay with it ! :( " + endpointId);
+            statusText.append("\n" + "Disconnected ! Client not okay with it ! " + endpointId);
         }
     }
 
@@ -468,7 +505,6 @@ public class MainActivity extends AppCompatActivity {
 
                 }
             }
-            //assign result to other slave
         }
     }
 }

@@ -9,6 +9,7 @@
         xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_margin="20dp"
         android:orientation="vertical"
         tools:context=".MainActivity">
 
@@ -45,5 +46,23 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:hint="Longitude" />
+
+        <TextView
+            android:id="@+id/et"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:hint="Execution time" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textStyle="bold"
+            android:text="Result of the matrix:" />
+
+        <TextView
+            android:id="@+id/result"
+            android:textStyle="bold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
     </LinearLayout>
 </ScrollView>
